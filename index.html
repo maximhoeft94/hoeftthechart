@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shot Chart Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #f0f0f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #002E5D;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    }
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #fff;
+    }
+    header span { font-size: 1.6rem; }
+
+    .container {
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+
+    /* Step cards */
+    .step {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 20px;
+      display: none;
+      animation: fadeIn 0.25s ease;
+    }
+    .step.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .step-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+    .step h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #f0f0f0;
+      margin-bottom: 20px;
+    }
+
+    /* Breadcrumb trail */
+    .breadcrumb {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+    }
+    .crumb {
+      font-size: 0.78rem;
+      background: #2a2d3a;
+      border-radius: 6px;
+      padding: 4px 10px;
+      color: #9ca3af;
+    }
+    .crumb.active { background: #002E5D; color: #fff; }
+    .crumb.done   { background: #1d4a1d; color: #6ee76e; }
+
+    /* Search input */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .search-wrap input {
+      width: 100%;
+      padding: 12px 16px;
+      background: #0f1117;
+      border: 1.5px solid #2a2d3a;
+      border-radius: 8px;
+      color: #f0f0f0;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-wrap input:focus { border-color: #4f78c8; }
+    .search-wrap input::placeholder { color: #4b5563; }
+
+    .hint {
+      font-size: 0.8rem;
+      color: #6b7280;
+      margin-bottom: 14px;
+    }
+
+    /* Lists */
+    .list-scroll {
+      max-height: 380px;
+      overflow-y: auto;
+      border: 1px solid #2a2d3a;
+      border-radius: 8px;
+    }
+    .list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 16px;
+      border-bottom: 1px solid #1e2130;
+      cursor: pointer;
+      transition: background 0.15s;
+      gap: 12px;
+    }
+    .list-item:last-child { border-bottom: none; }
+    .list-item:hover { background: #22263a; }
+    .list-item .name { font-size: 0.95rem; color: #e5e7eb; }
+    .list-item .meta { font-size: 0.78rem; color: #6b7280; white-space: nowrap; }
+    .list-item .result-w { color: #4ade80; font-weight: 600; }
+    .list-item .result-l { color: #f87171; font-weight: 600; }
+    .list-item .badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: #2a2d3a;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .list-item .badge.starter { background: #1e3a5f; color: #93c5fd; }
+
+    .section-header {
+      padding: 8px 16px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #6b7280;
+      background: #151821;
+      border-bottom: 1px solid #1e2130;
+      position: sticky;
+      top: 0;
+    }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 40px 20px;
+      color: #6b7280;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #2a2d3a;
+      border-top-color: #4f78c8;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Chart */
+    #chart-wrap {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 12px;
+      padding: 24px;
+      display: none;
+    }
+    #chart-wrap.active { display: block; animation: fadeIn 0.3s ease; }
+    #chart-wrap h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #9ca3af;
+      margin-bottom: 16px;
+    }
+    #svg-container { width: 100%; }
+    #svg-container svg { width: 100%; height: auto; }
+
+    .chart-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #002E5D; color: #fff; }
+    .btn-outline  { background: transparent; border: 1.5px solid #2a2d3a; color: #9ca3af; }
+
+    .error-msg {
+      background: #2d1a1a;
+      border: 1px solid #7f1d1d;
+      color: #fca5a5;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 12px;
+      font-size: 0.88rem;
+      display: none;
+    }
+    .error-msg.active { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span>🏀</span>
+  <h1>Shot Chart Generator</h1>
+</header>
+
+<div class="container">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <div class="crumb active" id="crumb-team">Team</div>
+    <div class="crumb" id="crumb-game">Game</div>
+    <div class="crumb" id="crumb-player">Player</div>
+    <div class="crumb" id="crumb-chart">Chart</div>
+  </div>
+
+  <!-- STEP 1: Team -->
+  <div class="step active" id="step-team">
+    <div class="step-label">Step 1 of 3</div>
+    <h2>What team do you want?</h2>
+    <div class="search-wrap">
+      <input type="text" id="team-search" placeholder="Search teams — e.g. BYU, Duke, Kentucky..." autocomplete="off"/>
+    </div>
+    <p class="hint">Or scroll through all teams below</p>
+    <div class="list-scroll" id="team-list">
+      <div class="loading"><div class="spinner"></div>Loading teams...</div>
+    </div>
+    <div class="error-msg" id="team-error"></div>
+  </div>
+
+  <!-- STEP 2: Game -->
+  <div class="step" id="step-game">
+    <div class="step-label">Step 2 of 3</div>
+    <h2>Which game do you want to look into?</h2>
+    <div class="search-wrap">
+      <input type="text" id="game-search" placeholder="Filter by opponent..." autocomplete="off"/>
+    </div>
+    <div class="list-scroll" id="game-list">
+      <div class="loading"><div class="spinner"></div>Loading schedule...</div>
+    </div>
+    <div class="error-msg" id="game-error"></div>
+  </div>
+
+  <!-- STEP 3: Player -->
+  <div class="step" id="step-player">
+    <div class="step-label">Step 3 of 3</div>
+    <h2>Which player do you want to look up?</h2>
+    <div class="search-wrap">
+      <input type="text" id="player-search" placeholder="Filter players..." autocomplete="off"/>
+    </div>
+    <div class="list-scroll" id="player-list">
+      <div class="loading"><div class="spinner"></div>Loading players...</div>
+    </div>
+    <div class="error-msg" id="player-error"></div>
+  </div>
+
+  <!-- Chart output -->
+  <div id="chart-wrap">
+    <h2 id="chart-title"></h2>
+    <div id="svg-container"></div>
+    <div class="loading" id="chart-loading" style="display:none"><div class="spinner"></div>Generating chart...</div>
+    <div class="chart-actions">
+      <button class="btn btn-primary" id="download-btn">⬇ Download SVG</button>
+      <button class="btn btn-outline" id="reset-btn">↩ Start Over</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── State ────────────────────────────────────────────────────────────────
+  let state = {
+    teamId: null, teamName: null,
+    gameId: null, gameName: null,
+    playerName: null,
+    allTeams: [], allGames: [], allPlayers: [],
+    svgContent: '', svgFilename: '',
+  };
+
+  // ── Utils ─────────────────────────────────────────────────────────────────
+  function showStep(id) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step-' + id).classList.add('active');
+    // Update breadcrumbs
+    const steps = ['team','game','player'];
+    const idx   = steps.indexOf(id);
+    steps.forEach((s, i) => {
+      const c = document.getElementById('crumb-' + s);
+      c.className = 'crumb' + (i < idx ? ' done' : i === idx ? ' active' : '');
+    });
+    document.getElementById('crumb-chart').className = 'crumb' + (id === 'chart' ? ' active' : '');
+  }
+
+  function showError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.classList.add('active');
+  }
+  function clearError(id) {
+    document.getElementById(id).classList.remove('active');
+  }
+
+  // ── STEP 1: Teams ─────────────────────────────────────────────────────────
+  async function loadTeams() {
+    const resp = await fetch('/api/teams');
+    state.allTeams = await resp.json();
+    renderTeams(state.allTeams);
+  }
+
+  function renderTeams(teams) {
+    const list = document.getElementById('team-list');
+    if (!teams.length) {
+      list.innerHTML = '<div class="loading">No teams found</div>';
+      return;
+    }
+    list.innerHTML = teams.map(t =>
+      `<div class="list-item" data-id="${t.id}" data-name="${t.name}">
+        <span class="name">${t.name}</span>
+      </div>`
+    ).join('');
+    list.querySelectorAll('.list-item').forEach(el => {
+      el.addEventListener('click', () => selectTeam(el.dataset.id, el.dataset.name));
+    });
+  }
+
+  document.getElementById('team-search').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    const filtered = state.allTeams.filter(t => t.name.toLowerCase().includes(q));
+    renderTeams(filtered);
+  });
+
+  function selectTeam(id, name) {
+    state.teamId   = id;
+    state.teamName = name;
+    document.getElementById('crumb-team').className = 'crumb done';
+    showStep('game');
+    loadSchedule(id, name);
+  }
+
+  // ── STEP 2: Games ─────────────────────────────────────────────────────────
+  async function loadSchedule(teamId, teamName) {
+    document.getElementById('game-list').innerHTML =
+      '<div class="loading"><div class="spinner"></div>Scanning full season (this takes ~25 seconds)...</div>';
+    const resp = await fetch('/api/schedule/' + teamId);
+    state.allGames = await resp.json();
+    renderGames(state.allGames);
+  }
+
+  function renderGames(games) {
+    const list = document.getElementById('game-list');
+    if (!games.length) {
+      list.innerHTML = '<div class="loading">No games found</div>';
+      return;
+    }
+    list.innerHTML = games.map(g => {
+      let resultHtml = '';
+      if (g.result.startsWith('W')) resultHtml = `<span class="result-w">${g.result}</span>`;
+      else if (g.result.startsWith('L')) resultHtml = `<span class="result-l">${g.result}</span>`;
+      return `<div class="list-item" data-id="${g.id}" data-name="${g.name}">
+        <span class="name">${g.homeAway} ${g.opponent}</span>
+        <span class="meta">${g.date} &nbsp; ${resultHtml}</span>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.list-item').forEach(el => {
+      el.addEventListener('click', () => selectGame(el.dataset.id, el.dataset.name));
+    });
+  }
+
+  document.getElementById('game-search').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    const filtered = state.allGames.filter(g =>
+      g.opponent.toLowerCase().includes(q) || g.date.includes(q)
+    );
+    renderGames(filtered);
+  });
+
+  function selectGame(id, name) {
+    state.gameId   = id;
+    state.gameName = name;
+    showStep('player');
+    loadPlayers(id);
+  }
+
+  // ── STEP 3: Players ───────────────────────────────────────────────────────
+  async function loadPlayers(gameId) {
+    document.getElementById('player-list').innerHTML =
+      '<div class="loading"><div class="spinner"></div>Loading players...</div>';
+    const resp = await fetch(`/api/players/${gameId}?team=${encodeURIComponent(state.teamName)}`);
+    const data = await resp.json();
+    if (data.error) { showError('player-error', data.error); return; }
+    state.allPlayers = data.players;
+    state.primaryTeam = data.primaryTeam;
+    state.oppTeam     = data.oppTeam;
+    renderPlayers(data.players, data.primaryTeam, data.oppTeam);
+  }
+
+  function renderPlayers(players, primary, opp) {
+    const list = document.getElementById('player-list');
+    const primaryPlayers = players.filter(p => p.is_primary);
+    const oppPlayers     = players.filter(p => !p.is_primary);
+
+    let html = `<div class="section-header">${primary}</div>`;
+    html += primaryPlayers.map(p =>
+      `<div class="list-item" data-name="${p.name}">
+        <span class="name">${p.name}</span>
+        ${p.starter ? '<span class="badge starter">Starter</span>' : '<span class="badge">Bench</span>'}
+      </div>`
+    ).join('');
+
+    html += `<div class="section-header">${opp}</div>`;
+    html += oppPlayers.map(p =>
+      `<div class="list-item" data-name="${p.name}">
+        <span class="name">${p.name}</span>
+        ${p.starter ? '<span class="badge starter">Starter</span>' : '<span class="badge">Bench</span>'}
+      </div>`
+    ).join('');
+
+    list.innerHTML = html;
+    list.querySelectorAll('.list-item').forEach(el => {
+      el.addEventListener('click', () => selectPlayer(el.dataset.name));
+    });
+  }
+
+  document.getElementById('player-search').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    const filtered = state.allPlayers.filter(p => p.name.toLowerCase().includes(q));
+    renderPlayers(filtered, state.primaryTeam, state.oppTeam);
+  });
+
+  function selectPlayer(name) {
+    state.playerName = name;
+    generateChart(name);
+  }
+
+  // ── Chart ─────────────────────────────────────────────────────────────────
+  async function generateChart(playerName) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    const wrap = document.getElementById('chart-wrap');
+    wrap.classList.add('active');
+    document.getElementById('svg-container').innerHTML = '';
+    document.getElementById('chart-loading').style.display = 'block';
+    document.getElementById('chart-title').textContent = 'Generating chart...';
+
+    // Update breadcrumbs
+    ['team','game','player'].forEach(s => document.getElementById('crumb-'+s).className = 'crumb done');
+    document.getElementById('crumb-chart').className = 'crumb active';
+
+    const url = `/api/chart/${state.gameId}/${encodeURIComponent(playerName)}?team=${encodeURIComponent(state.teamName)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    document.getElementById('chart-loading').style.display = 'none';
+
+    if (data.error) {
+      document.getElementById('chart-title').textContent = 'Error: ' + data.error;
+      return;
+    }
+
+    state.svgContent  = data.svg;
+    state.svgFilename = data.filename;
+
+    document.getElementById('chart-title').textContent = data.title;
+    document.getElementById('svg-container').innerHTML = data.svg;
+  }
+
+  document.getElementById('download-btn').addEventListener('click', () => {
+    if (!state.svgContent) return;
+    const blob = new Blob([state.svgContent], { type: 'image/svg+xml' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = state.svgFilename;
+    a.click();
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    state = { teamId: null, teamName: null, gameId: null, gameName: null,
+              playerName: null, allTeams: state.allTeams, allGames: [], allPlayers: [],
+              svgContent: '', svgFilename: '' };
+    document.getElementById('chart-wrap').classList.remove('active');
+    document.getElementById('team-search').value = '';
+    document.getElementById('game-search').value = '';
+    document.getElementById('player-search').value = '';
+    renderTeams(state.allTeams);
+    showStep('team');
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  loadTeams();
+</script>
+</body>
+</html>
